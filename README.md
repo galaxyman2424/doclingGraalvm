@@ -27,21 +27,13 @@ To build the project:
 mvn clean install
 
 Running
-Depending on the contents of src/main/java, integration examples or entrypoints may be invoked with:
-java -jar target/doclingGraalvm.jar
-
-Or executed via GraalVM native image tooling for a compiled binary:
-
-native-image --no-server -jar target/doclingGraalvm.jar
+- Depending on the contents of src/main/java, integration examples or entrypoints may be invoked with:
+  - mvn clean compile exec:java
+  - java -cp "target\classes;$CP" PythonRunner
 
 Contributions
-
 This repository is at an early stage. Contributions are welcome to:
-
-Add descriptive APIs for Docling usage
-
-Provide example applications (CLI or server)
-
-Configure GraalVM native image builds
-
-Add tests and documentation
+- Add descriptive APIs for Docling usage
+- Provide example applications (CLI or server)
+- Configure GraalVM native image builds
+- Add tests and documentation
