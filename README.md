@@ -13,42 +13,22 @@ What Is GraalVM?
 GraalVM is an advanced JVM distribution that supports polyglot programming (Java, Python, JavaScript, etc.) and can compile applications ahead-of-time into native executables with reduced startup time and memory footprint.
 
 Project Goals
+- Provide a Java wrapper or integration layer to embed Docling functionality.
+- Enable Docling to run within a GraalVM environment.
+- Explore GraalVM compilation options (native image, polyglot invocation) for document processing tasks.
 
-Provide a Java wrapper or integration layer to embed Docling functionality.
-
-Enable Docling to run within a GraalVM environment.
-
-Explore GraalVM compilation options (native image, polyglot invocation) for document processing tasks.
-
-Repository Structure
-doclingGraalvm/
-├── .vscode/                    # IDE settings
-├── src/
-│   └── main/
-│       └── java/               # Java source code
-├── target/                     # Compiled artifacts
-└── pom.xml                     # Maven build configuration
-
-Requirements
-
-Java 17+ (or appropriate JDK version supported by GraalVM)
-
-GraalVM JDK installed on your system
-
-Maven for building the project
+Requirements:
+- Java 21+ 
+- GraalVM JDK for java 21 installed on your system
+- Maven for building the project
 
 Building
-
 To build the project:
-
 mvn clean install
 
 Running
-
 Depending on the contents of src/main/java, integration examples or entrypoints may be invoked with:
-
 java -jar target/doclingGraalvm.jar
-
 
 Or executed via GraalVM native image tooling for a compiled binary:
 
