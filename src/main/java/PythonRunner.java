@@ -45,10 +45,10 @@ public class PythonRunner {
             "    markdown = result.document.export_to_markdown()\n" +
             "    with open(r'" + outputPath + "', 'w', encoding='utf-8') as f:\n" +
             "        f.write(markdown)\n" +
-            "    print('✓ Conversion successful!')\n" +
-            "    print(f'✓ Output saved to: {r\"" + outputPath + "\"}')\n" +
+            "    print('[SUCCESS] Conversion successful!')\n" +
+            "    print(f'[SUCCESS] Output saved to: {r\"" + outputPath + "\"}')\n" +
             "except Exception as e:\n" +
-            "    print(f'✗ Python Error: {e}')\n" +
+            "    print(f'[ERROR] Python Error: {e}')\n" +
             "    traceback.print_exc()\n" +
             "    exit(1)\n";
 
