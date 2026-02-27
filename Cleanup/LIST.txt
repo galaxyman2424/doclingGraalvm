@@ -1,0 +1,22 @@
+The Architecture You Should Propose
+⭐ GraalVM-Orchestrated Hybrid Python Runtime
+
+Instead of:
+
+Java → HTTP → Docling Serve
+
+or
+
+Java → GraalPy → Docling (fails)
+
+
+
+You build:
+
+Java (GraalVM host)
+        ↓ polyglot
+GraalPy controller
+        ↓ direct process spawn
+CPython worker (Docling)
+
+
