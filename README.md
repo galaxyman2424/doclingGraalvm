@@ -1,10 +1,10 @@
 Overview
 
-This project demonstrates how to embed Python inside a Java 17 application using GraalVM’s Polyglot runtime (GraalPy). The objective is to allow Java code to execute Python logic directly within the same process, enabling interoperability between the two languages without spawning external Python processes.
+This project demonstrates how to embed Python inside a Java 21 application using GraalVM’s Polyglot runtime (GraalPy). The objective is to allow Java code to execute Python logic directly within the same process, enabling interoperability between the two languages without spawning external Python processes.
 
 The motivation for this setup is:
 
-Maintain a Java-based system (required constraint: Java 17)
+Maintain a Java-based system (required constraint: Java 21)
 
 Execute Python code for scripting, data processing, or AI-related workflows
 
@@ -18,7 +18,7 @@ Architecture Concept
 
 The system uses:
 
-Java (JDK 17) — primary application runtime
+Java (JDK 21) — primary application runtime
 
 GraalVM Polyglot API — language interoperability layer
 
@@ -46,7 +46,7 @@ Project Goals
 
 Embed Python execution inside a Java application.
 
-Ensure compatibility with Java 17 constraints.
+Ensure compatibility with Java 21 constraints.
 
 Run Python without installing or invoking system CPython.
 
@@ -59,8 +59,8 @@ Establish a foundation for future Java ↔ Python interoperability.
 What Has Been Accomplished
 Environment Setup
 
-Installed Java 17 JDK (project constraint)
-Installed GraalVM distribution compatible with Java 17
+Installed Java 21 JDK (project constraint)
+Installed GraalVM distribution compatible with Java 21
 Downloaded and configured GraalPy runtime
 Verified GraalVM tooling works locally
 
