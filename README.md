@@ -1,39 +1,119 @@
-DoclingGraalvm
+Overview
 
-DoclingGraalvm is a Java project that aims to integrate Docling — an AI-driven document processing and conversion toolkit — with GraalVM, allowing Docling to run efficiently on the GraalVM runtime and take advantage of GraalVM’s polyglot and native execution capabilities.
+This project demonstrates how to embed Python inside a Java 17 application using GraalVM’s Polyglot runtime (GraalPy). The objective is to allow Java code to execute Python logic directly within the same process, enabling interoperability between the two languages without spawning external Python processes.
 
-Note: This repository currently contains minimal code and configuration. The intent is to serve as a starting point for integrating Docling’s APIs within a GraalVM-compatible Java project.
+The motivation for this setup is:
 
-What Is Docling?
+Maintain a Java-based system (required constraint: Java 17)
 
-Docling is an open-source document understanding and conversion toolkit powered by AI models for layout analysis, table extraction, OCR, and structured content export. It supports PDF, DOCX, XLSX, HTML, images, and more, and integrates with AI frameworks and pipelines.
+Execute Python code for scripting, data processing, or AI-related workflows
 
-What Is GraalVM?
+Avoid traditional approaches such as subprocess execution or REST bridges
 
-GraalVM is an advanced JVM distribution that supports polyglot programming (Java, Python, JavaScript, etc.) and can compile applications ahead-of-time into native executables with reduced startup time and memory footprint.
+Use GraalVM’s polyglot capabilities for native language interoperability
+
+Architecture Concept
+
+The system uses:
+
+Java (JDK 17) — primary application runtime
+
+GraalVM Polyglot API — language interoperability layer
+
+GraalPy — Python implementation running on GraalVM
+
+Maven — project build and dependency management
+
+Execution flow:
+
+Java Application
+       ↓
+GraalVM Polyglot Context
+       ↓
+Embedded GraalPy Runtime
+       ↓
+Python Code Execution
+
+Java creates a Context object that loads the Python engine and executes Python scripts directly.
 
 Project Goals
-- Provide a Java wrapper or integration layer to embed Docling functionality.
-- Enable Docling to run within a GraalVM environment.
-- Explore GraalVM compilation options (native image, polyglot invocation) for document processing tasks.
 
-Requirements:
-- Java 21+ 
-- GraalVM JDK for java 21 installed on your system
-- Maven for building the project
+Embed Python execution inside a Java application.
 
-Building
-To build the project:
-mvn clean install
+Ensure compatibility with Java 17 constraints.
 
-Running
-- Depending on the contents of src/main/java, integration examples or entrypoints may be invoked with:
-  - mvn clean compile exec:java
-  - java -cp "target\classes;$CP" PythonRunner
+Run Python without installing or invoking system CPython.
 
-Contributions
-This repository is at an early stage. Contributions are welcome to:
-- Add descriptive APIs for Docling usage
-- Provide example applications (CLI or server)
-- Configure GraalVM native image builds
-- Add tests and documentation
+Maintain a clean Maven-based build workflow.
+
+Establish a foundation for future Java ↔ Python interoperability.
+
+What Has Been Accomplished
+Environment Setup
+
+Installed Java 17 JDK (project constraint)
+Installed GraalVM distribution compatible with Java 17
+Downloaded and configured GraalPy runtime
+Verified GraalVM tooling works locally
+
+Project Configuration
+
+Created Maven project structure:
+
+project-root/
+ ├─ pom.xml
+ └─ src/main/java/
+     └─ PythonRunner.java
+
+Configured Maven dependencies for:
+
+GraalVM Polyglot API
+
+Python language support
+
+Configured exec-maven-plugin to run a Java main class.
+
+Embedding Python
+
+Implemented a Java entry class (PythonRunner) that:
+
+Creates a GraalVM polyglot context
+
+Enables Python execution
+
+Runs embedded Python code
+
+Example concept:
+
+Context context = Context.newBuilder("python")
+    .allowAllAccess(true)
+    .build();
+
+context.eval("python", "print('Hello from Python')");
+
+This confirms Python execution inside the JVM.
+
+Toolchain Decisions
+Decision	Reason
+Java 17 only	Course/environment constraint
+GraalPy instead of CPython	Native JVM integration
+Embedded runtime	No subprocess overhead
+Maven	Standardized builds
+Current State
+
+The project now has:
+
+A working GraalPy installation
+
+Java ↔ Python execution capability
+
+Maven build configuration
+
+Main class located in the default package
+
+Execution via:
+
+mvn compile
+mvn exec:java
+
+At this stage, Python code can successfully run from Java.
