@@ -12,6 +12,8 @@ Avoid traditional approaches such as subprocess execution or REST bridges
 
 Use GraalVM’s polyglot capabilities for native language interoperability
 
+
+
 Architecture Concept
 
 The system uses:
@@ -23,6 +25,8 @@ GraalVM Polyglot API — language interoperability layer
 GraalPy — Python implementation running on GraalVM
 
 Maven — project build and dependency management
+
+
 
 Execution flow:
 
@@ -36,6 +40,8 @@ Python Code Execution
 
 Java creates a Context object that loads the Python engine and executes Python scripts directly.
 
+
+
 Project Goals
 
 Embed Python execution inside a Java application.
@@ -47,6 +53,8 @@ Run Python without installing or invoking system CPython.
 Maintain a clean Maven-based build workflow.
 
 Establish a foundation for future Java ↔ Python interoperability.
+
+
 
 What Has Been Accomplished
 Environment Setup
@@ -68,20 +76,13 @@ project-root/
 Configured Maven dependencies for:
 
 GraalVM Polyglot API
-
 Python language support
-
 Configured exec-maven-plugin to run a Java main class.
-
 Embedding Python
-
 Implemented a Java entry class (PythonRunner) that:
-
-Creates a GraalVM polyglot context
-
-Enables Python execution
-
-Runs embedded Python code
+  Creates a GraalVM polyglot context
+  Enables Python execution
+  Runs embedded Python code
 
 Example concept:
 
@@ -93,6 +94,8 @@ context.eval("python", "print('Hello from Python')");
 
 This confirms Python execution inside the JVM.
 
+
+
 Toolchain Decisions
 Decision	Reason
 Java 17 only	Course/environment constraint
@@ -100,6 +103,8 @@ GraalPy instead of CPython	Native JVM integration
 Embedded runtime	No subprocess overhead
 Maven	Standardized builds
 Current State
+
+
 
 The project now has:
 
