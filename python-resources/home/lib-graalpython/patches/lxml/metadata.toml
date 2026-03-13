@@ -1,0 +1,4 @@
+[[rules]]
+version = '== 4.9.1'
+patch = 'lxml-4.9.1.patch'
+license = 'BSD-3-Clause'

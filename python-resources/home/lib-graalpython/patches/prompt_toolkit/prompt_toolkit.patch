@@ -1,0 +1,20 @@
+diff --git a/prompt_toolkit/application/application.py b/prompt_toolkit/application/application.py
+index d93c243..ed4a57e 100644
+--- a/prompt_toolkit/application/application.py
++++ b/prompt_toolkit/application/application.py
+@@ -1594,6 +1594,15 @@ def attach_winch_signal_handler(
+ 
+ @contextmanager
+ def _restore_sigint_from_ctypes() -> Generator[None, None, None]:
++    import sys
++    if sys.implementation.name == 'graalpy':
++        sigint = signal.getsignal(signal.SIGINT)
++        try:
++            yield
++        finally:
++            if sigint is not None:
++                signal.signal(signal.SIGINT, sigint)
++        return
+     # The following functions are part of the stable ABI since python 3.2
+     # See: https://docs.python.org/3/c-api/sys.html#c.PyOS_getsig
+     # Inline import: these are not available on Pypy.

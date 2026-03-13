@@ -1,0 +1,74 @@
+diff --git a/pybind11/include/pybind11/detail/common.h b/pybind11/include/pybind11/detail/common.h
+index f34fd27..f73e41b 100644
+--- a/pybind11/include/pybind11/detail/common.h
++++ b/pybind11/include/pybind11/detail/common.h
+@@ -230,7 +230,7 @@
+ #    undef copysign
+ #endif
+ 
+-#if defined(PYPY_VERSION) && !defined(PYBIND11_SIMPLE_GIL_MANAGEMENT)
++#if (defined(PYPY_VERSION) || defined(GRAALVM_PYTHON)) && !defined(PYBIND11_SIMPLE_GIL_MANAGEMENT)
+ #    define PYBIND11_SIMPLE_GIL_MANAGEMENT
+ #endif
+ 
+diff --git a/pybind11/include/pybind11/detail/type_caster_base.h b/pybind11/include/pybind11/detail/type_caster_base.h
+index 21f69c2..595c7d4 100644
+--- a/pybind11/include/pybind11/detail/type_caster_base.h
++++ b/pybind11/include/pybind11/detail/type_caster_base.h
+@@ -484,7 +484,7 @@ PYBIND11_NOINLINE handle get_object_handle(const void *ptr, const detail::type_i
+ }
+ 
+ inline PyThreadState *get_thread_state_unchecked() {
+-#if defined(PYPY_VERSION)
++#if defined(PYPY_VERSION) || defined(GRAALVM_PYTHON)
+     return PyThreadState_GET();
+ #else
+     return _PyThreadState_UncheckedGet();
+diff --git a/pybind11/include/pybind11/eval.h b/pybind11/include/pybind11/eval.h
+index bd5f981..c25f036 100644
+--- a/pybind11/include/pybind11/eval.h
++++ b/pybind11/include/pybind11/eval.h
+@@ -94,7 +94,7 @@ void exec(const char (&s)[N], object global = globals(), object local = object()
+     eval<eval_statements>(s, std::move(global), std::move(local));
+ }
+ 
+-#if defined(PYPY_VERSION)
++#if defined(PYPY_VERSION) || defined(GRAALVM_PYTHON)
+ template <eval_mode mode = eval_statements>
+ object eval_file(str, object, object) {
+     pybind11_fail("eval_file not supported in PyPy3. Use eval");
+diff --git a/pybind11/include/pybind11/pybind11.h b/pybind11/include/pybind11/pybind11.h
+index 42d432a..2e12a93 100644
+--- a/pybind11/include/pybind11/pybind11.h
++++ b/pybind11/include/pybind11/pybind11.h
+@@ -537,7 +537,7 @@ protected:
+                 chain_start = rec;
+                 rec->next = chain;
+                 auto rec_capsule
+-                    = reinterpret_borrow<capsule>(((PyCFunctionObject *) m_ptr)->m_self);
++                    = reinterpret_borrow<capsule>(PyCFunction_GetSelf(m_ptr));
+                 rec_capsule.set_pointer(unique_rec.release());
+                 guarded_strdup.release();
+             } else {
+@@ -2657,7 +2657,7 @@ get_type_override(const void *this_ptr, const type_info *this_type, const char *
+ 
+     /* Don't call dispatch code if invoked from overridden function.
+        Unfortunately this doesn't work on PyPy. */
+-#if !defined(PYPY_VERSION)
++#if !defined(PYPY_VERSION) && !defined(GRAALVM_PYTHON)
+ #    if PY_VERSION_HEX >= 0x03090000
+     PyFrameObject *frame = PyThreadState_GetFrame(PyThreadState_Get());
+     if (frame != nullptr) {
+diff --git a/pybind11/include/pybind11/pytypes.h b/pybind11/include/pybind11/pytypes.h
+index d21fc89..8e12dbb 100644
+--- a/pybind11/include/pybind11/pytypes.h
++++ b/pybind11/include/pybind11/pytypes.h
+@@ -534,7 +534,7 @@ struct error_fetch_and_normalize {
+ 
+         bool have_trace = false;
+         if (m_trace) {
+-#if !defined(PYPY_VERSION)
++#if !defined(PYPY_VERSION) && !defined(GRAALVM_PYTHON)
+             auto *tb = reinterpret_cast<PyTracebackObject *>(m_trace.ptr());
+ 
+             // Get the deepest trace possible.

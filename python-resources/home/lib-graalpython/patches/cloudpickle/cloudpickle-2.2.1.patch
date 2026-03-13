@@ -1,0 +1,21 @@
+diff --git a/cloudpickle/cloudpickle.py b/cloudpickle/cloudpickle.py
+index 317be69..0c23e88 100644
+--- a/cloudpickle/cloudpickle.py
++++ b/cloudpickle/cloudpickle.py
+@@ -512,10 +512,12 @@ def _walk_global_ops(code):
+     """
+     Yield referenced name for all global-referencing instructions in *code*.
+     """
+-    for instr in dis.get_instructions(code):
+-        op = instr.opcode
+-        if op in GLOBAL_OPS:
+-            yield instr.argval
++    # GraalPy change: we don't support dis
++    yield from code.co_names
++    # for instr in dis.get_instructions(code):
++    #     op = instr.opcode
++    #     if op in GLOBAL_OPS:
++    #         yield instr.argval
+ 
+ 
+ def _extract_class_dict(cls):
