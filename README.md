@@ -1,214 +1,235 @@
-Docling on GraalVM (GraalPy Integration)
-1. Overview
+# Docling on GraalVM (GraalPy Integration)
+
+## 1. Overview
 
 This project embeds IBM Docling directly inside a GraalVM JVM process using GraalPy.
 
 The goal is to eliminate the HTTP/REST layer used by Docling-Serve and instead execute Docling natively within the JVM via GraalVM’s polyglot capabilities.
 
-Key Objective
+### Key Objectives
+- Replace inter-process communication (REST) with in-process polyglot execution
+- Reduce latency and architectural complexity
+- Maintain functional parity with Docling-Serve
 
-Replace inter-process communication (REST) with in-process polyglot execution
+---
 
-Reduce latency and architectural complexity
+## 2. Architecture
 
-Maintain functional parity with Docling-Serve
-
-2. Architecture
-Baseline (Docling-Serve)
+### Baseline (Docling-Serve)
 Java → HTTP → Python (Docling) → HTTP → Java
-This Project
+
+### This Project
 Java (GraalVM)
-   ↓
+↓
 GraalPy (embedded Python runtime)
-   ↓
+↓
 Docling (native execution)
-Key Insight
 
-Testing confirmed that using ProcessBuilder IPC is architecturally equivalent to Docling-Serve with negligible performance difference. However, GraalPy enables a cleaner, single-runtime architecture.
 
-3. Environment Setup
-System Configuration
+### Key Insight
+Testing confirmed that using `ProcessBuilder` IPC is architecturally equivalent to Docling-Serve with negligible performance difference. However, GraalPy enables a cleaner, single-runtime architecture.
 
-OS: WSL2 Ubuntu
+---
 
-RAM Allocation:
+## 3. Environment Setup
 
-24GB memory
+### System Configuration
 
-16GB swap
+- OS: WSL2 Ubuntu
+- RAM Allocation:
+  - 24GB memory
+  - 16GB swap
 
-.wslconfig (Windows)
+#### `.wslconfig` (Windows)
 [wsl2]
 memory=24GB
 swap=16GB
 
-⚠️ Changes require:
 
-wsl --shutdown
-# wait ~30 seconds before restarting
-GraalVM Setup
+⚠️ Apply changes with:
 
-GraalVM JDK: 21.0.10
+---
 
-GraalPy: 25.0.2
+### GraalVM Setup
 
-Virtual Environment
+- GraalVM JDK: 21.0.10  
+- GraalPy: 25.0.2  
+
+### Virtual Environment
 ~/docling-env
-Required Environment Variables
+
+
+---
+
+### Required Environment Variables
 
 Run every session:
-
 export JAVA_TOOL_OPTIONS="-Xmx1g -Xms128m -XX:+UseSerialGC"
 source ~/docling-env/bin/activate
-4. Dependency Installation
-Important Notes
 
-pom.xml is irrelevant for Python dependency resolution
 
-Avoid pip spawning subprocess JVMs
+---
 
-Use GraalVM wheel index
+## 4. Dependency Installation
 
-Install Core Dependencies
-graalpy -m pip install \
-  numpy==2.2.4 \
-  pydantic==2.12.5 \
-  pydantic-core==2.41.5 \
-  --extra-index-url https://www.graalvm.org/python/wheels/
-Preinstalled Build Dependencies
+### Important Notes
 
-The following must already be installed:
+- `pom.xml` is irrelevant for Python dependency resolution
+- Avoid pip spawning subprocess JVMs
+- Use GraalVM wheel index
 
-meson-python
+---
 
-meson
+### Install Core Dependencies
+graalpy -m pip install
+numpy==2.2.4
+pydantic==2.12.5
+pydantic-core==2.41.5
 
-ninja
 
-cython
+---
 
-versioneer
+### Required Build Dependencies
 
-5. Pandas Installation (Critical Step)
-Problem
+Ensure these are installed beforehand:
+
+- meson-python
+- meson
+- ninja
+- cython
+- versioneer
+
+---
+
+## 5. Pandas Installation (Critical Step)
+
+### Problem
 
 Installing pandas fails due to out-of-memory (OOM) during compilation.
 
-Root Cause
+### Root Cause
 
-From dmesg:
+From `dmesg`:
 
-ninja spawns 15+ parallel Cython jobs
+- `ninja` spawns 15+ parallel Cython jobs
+- Each job reserves ~9.3GB virtual memory
+- Total demand exceeds system limits
+- WSL crashes (not just killing the process)
 
-Each job reserves ~9.3GB virtual memory
+---
 
-Total memory demand exceeds system limits
-
-WSL crashes (not just process termination)
-
-Solution: Limit Parallelism
+### Solution: Limit Parallelism
 export JAVA_TOOL_OPTIONS="-Xmx1g -Xms128m -XX:+UseSerialGC"
 export MAX_JOBS=1
 
-graalpy -m pip install pandas \
-  --no-build-isolation \
-  --extra-index-url https://www.graalvm.org/python/wheels/ \
-  --config-settings=compile-args=-j1 \
-  -v 2>&1 | tee pandas_install.log
-6. GraalPy Compatibility
+graalpy -m pip install pandas
+--no-build-isolation
+--extra-index-url https://www.graalvm.org/python/wheels/
 
-According to official documentation, GraalPy supports:
+--config-settings=compile-args=-j1
+-v 2>&1 | tee pandas_install.log
 
-pandas (via Arrow backend)
 
-scipy
+---
 
-torch
+## 6. GraalPy Compatibility
 
-This confirms the approach is technically viable, not experimental.
+GraalPy officially supports:
 
-7. Current Status
-Working
+- pandas (via Arrow backend)
+- scipy
+- torch
 
-numpy 2.2.4
+This confirms the approach is technically viable.
 
-pydantic 2.12.5
+---
 
-pydantic-core 2.41.5
+## 7. Current Status
 
-WSL memory properly configured (23GB available)
+### Working
 
-In Progress
+- numpy 2.2.4
+- pydantic 2.12.5
+- pydantic-core 2.41.5
+- WSL memory properly configured (~23GB available)
 
-pandas installation (OOM mitigated, not yet completed)
+### In Progress
 
-8. Next Steps
+- pandas installation (OOM mitigated, not yet completed)
 
-Complete pandas installation (single-threaded build)
+---
 
-Install Docling dependencies:
+## 8. Next Steps
 
+1. Complete pandas installation (single-threaded build)
+
+2. Install Docling dependencies:
 pip install docling-parse
 pip install docling --no-deps
 
-Validate Python side:
-
+3. Validate Python:
 from docling.document_converter import DocumentConverter
 
-Validate Java ↔ Python integration:
+4. Validate Java ↔ Python integration:
+- Run `EmbedPythonTest.java`
 
-Run EmbedPythonTest.java
+5. Benchmark vs Docling-Serve
 
-Benchmark vs Docling-Serve
+---
 
-9. Key Technical Findings
-Confirmed Non-Issues
+## 9. Key Technical Findings
 
-LLVM bitcode path
+### Confirmed Non-Issues
 
-CPython-in-GraalVM assumptions
+- LLVM bitcode path
+- CPython-in-GraalVM assumptions
+- “Assembly-level incompatibility” concerns
+- PyArrow workaround attempts
+- Custom GraalPy wheel builds
 
-“Assembly-level incompatibility” concerns
+### Critical Discovery
 
-PyArrow as a workaround
+The failure is not compatibility-related.
 
-Custom GraalPy wheel builds
-
-Critical Discovery
-
-The failure is not compatibility-related — it is purely:
-
+It is purely:
 Parallel compilation memory exhaustion
 
-10. Development Constraints
 
-Machine: 32GB RAM
+---
 
-Windows host has Application Control restrictions
+## 10. Development Constraints
 
-Java files located at:
+- Machine: 32GB RAM
+- Windows host has application control restrictions
+- Java files located at:
+   - C:\Users\Connor\Desktop\GraalPolyglotProject\
 
-C:\Users\Connor\Desktop\GraalPolyglotProject\
-11. Operational Notes
 
-Every WSL restart requires reinitializing environment variables
+---
 
-Pip must be run with:
+## 11. Operational Notes
 
---no-build-isolation
+- Every WSL restart requires reinitializing environment variables
+- Always use:
+  - `--no-build-isolation`
+- Memory tuning is required for stability
 
-Memory tuning is mandatory for stability
+---
 
-12. Project Significance
+## 12. Project Significance
 
 This project demonstrates:
 
-Feasibility of running complex Python ML/data libraries inside JVM
+- Feasibility of running Python data/ML libraries inside a JVM
+- Elimination of microservice overhead
+- Real-world limits of GraalPy
 
-Elimination of microservice overhead
+### Key Takeaway
 
-Practical limits of GraalPy in real-world workloads
+The primary bottleneck is not runtime compatibility, but build system behavior (ninja + Cython parallelism).
 
-It also highlights a critical constraint:
+---
 
-Build systems (e.g., ninja + Cython) are often the bottleneck—not runtime compatibility.
+## 13. Repository
+
+https://github.com/galaxyman2424/doclingGraalvm/tree/doclingGraalpy
