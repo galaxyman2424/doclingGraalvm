@@ -1,0 +1,1 @@
+/home/connor/doclingGraalvm/target/graalpy.sh

@@ -8,9 +8,6 @@
     <groupId>com.example</groupId>
     <artifactId>graalvm-python</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <packaging>jar</packaging>
-
-    <name>GraalVM Docling Runner</name>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -25,19 +22,12 @@
             <artifactId>polyglot</artifactId>
             <version>${graalpy.version}</version>
         </dependency>
-        <!-- Pulls in python-language and python-resources transitively -->
         <dependency>
             <groupId>org.graalvm.polyglot</groupId>
             <artifactId>python</artifactId>
             <version>${graalpy.version}</version>
             <type>pom</type>
             <scope>runtime</scope>
-        </dependency>
-        <!-- Needed for GraalPyResources API (available in 24.1.x as utils version) -->
-        <dependency>
-            <groupId>org.graalvm.python</groupId>
-            <artifactId>python-embedding</artifactId>
-            <version>${graalpy.version}</version>
         </dependency>
     </dependencies>
 
@@ -50,45 +40,6 @@
                 <configuration>
                     <source>21</source>
                     <target>21</target>
-                </configuration>
-            </plugin>
-
-            <!-- GraalPy plugin: creates venv and pip-installs packages at build time -->
-            <plugin>
-                <groupId>org.graalvm.python</groupId>
-                <artifactId>graalpy-maven-plugin</artifactId>
-                <version>${graalpy.version}</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>process-graalpy-resources</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <!--
-                        Use an external directory (not embedded in JAR).
-                        This is better for large packages like docling.
-                        The plugin will manage: python-resources/venv and python-resources/home
-                    -->
-                    <pythonResourcesDirectory>${basedir}/python-resources</pythonResourcesDirectory>
-                    <packages>
-                        <!--
-                            START CONSERVATIVE: just docling core, no heavy optional deps.
-                            If this works, we know the install succeeded.
-                            We'll add more after first successful build.
-                        -->
-                        <package>docling</package>
-                    </packages>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>3.1.0</version>
-                <configuration>
-                    <mainClass>EmbedPythonTest</mainClass>
                 </configuration>
             </plugin>
         </plugins>
