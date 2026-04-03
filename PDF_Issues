@@ -1,0 +1,199 @@
+# Why Running PDFium via LLVM Bitcode in GraalVM (Sulong) Doesn’t Work
+
+This document explains the structural reasons why attempting to run PDFium (and by extension, pypdfium2) as LLVM bitcode inside GraalVM’s Sulong engine is not viable in practice.
+
+---
+
+## Overview
+
+At a high level, the idea is:
+
+1. Build PDFium and all dependencies as LLVM bitcode (`-flto -femit-llvm`)
+2. Run that bitcode inside GraalVM via Sulong
+3. Interface with it through GraalPy instead of native ctypes
+
+While theoretically appealing, this approach fails due to mismatches in:
+
+* Build systems
+* Dependency requirements
+* Runtime semantics
+* Instruction set support
+
+---
+
+## 1. PDFium’s Build System Is Not LLVM-Bitcode Compatible
+
+PDFium is built using Chromium’s infrastructure:
+
+* `gn` (meta-build system)
+* `ninja` (build executor)
+* `depot_tools` (toolchain wrapper)
+
+This pipeline assumes:
+
+* Native compilation targets (ELF/Mach-O/PE)
+* Platform-specific flags and optimizations
+* Mixed-language builds including assembly
+
+Attempting to inject:
+
+```
+-flto -femit-llvm
+```
+
+breaks:
+
+* GN toolchain definitions
+* Static linking stages
+* Assumptions about object file formats
+
+You would need to **rewrite GN toolchain configs**, not just add flags.
+
+---
+
+## 2. Dependency Graph Cannot Be Fully Converted to Bitcode
+
+PDFium depends on a large native stack:
+
+* Skia (2D rendering engine)
+* zlib
+* libpng
+* libjpeg
+* libtiff
+* FreeType
+* OpenJPEG
+* lcms2
+
+To make this work, **every single dependency must be compiled to LLVM bitcode**.
+
+Problems:
+
+* Many libraries include assembly (especially for performance)
+* Some ship precompiled binaries by default
+* Build systems vary (CMake, autotools, custom scripts)
+
+Critical constraint:
+
+> LLVM bitcode execution requires a fully homogeneous IR graph.
+
+If even one `.a` or `.o` is native:
+
+* Linking fails, or
+* Execution fails inside Sulong
+
+This is an **all-or-nothing closure problem**.
+
+---
+
+## 3. SIMD Instructions Are Unsupported in Sulong
+
+PDFium and Skia rely heavily on:
+
+* SSE2
+* AVX
+* Platform-specific vector intrinsics
+
+Sulong:
+
+* Does not support lowering x86 SIMD intrinsics
+* Cannot interpret these instructions at runtime
+
+Consequences:
+
+* Compilation failures, or
+* Runtime crashes
+
+Disabling SIMD is not a real workaround:
+
+* Requires modifying large portions of Skia/PDFium
+* Breaks optimized rendering paths
+* Leads to severe performance degradation
+
+This is a **hard technical blocker**, not just an inconvenience.
+
+---
+
+## 4. C++ Runtime Features Don’t Map Cleanly
+
+PDFium uses advanced C++ features:
+
+* Exceptions
+* RTTI (`dynamic_cast`)
+* Custom allocators
+* Threading (`std::thread`, pthreads)
+
+Sulong’s support for these is:
+
+* Partial
+* Incomplete under complex workloads
+
+Typical failure modes:
+
+* Exception propagation breaks across boundaries
+* RTTI mismatches due to type metadata differences
+* Undefined behavior in memory management
+* Threading inconsistencies
+
+This creates **semantic incompatibility**, even if compilation succeeds.
+
+---
+
+## 5. GraalPy ctypes Bridge Is Experimental
+
+pypdfium2 relies on Python’s `ctypes` to call into PDFium.
+
+Your approach assumes:
+
+* ctypes calls can be routed through GraalVM’s polyglot layer
+* Callbacks (e.g., `FPDF_LoadMemDocument`) will behave correctly
+
+Reality:
+
+* GraalPy’s ctypes-to-LLVM bridge is experimental
+* Complex callback patterns are not well supported
+
+Likely issues:
+
+* Callback invocation failures
+* Memory ownership mismatches
+* Crashes or silent corruption
+
+---
+
+## 6. ABI and API Compatibility Constraints
+
+pypdfium2 expects:
+
+* A very specific PDFium version
+* Exact symbol names and signatures
+* Matching ABI behavior
+
+If you compile your own version:
+
+* Even small mismatches break bindings
+* Debugging symbol-level incompatibilities is extremely difficult
+
+---
+
+## Bottom Line
+
+This approach fails not because it is “difficult,” but because:
+
+* The **build system is incompatible**
+* The **dependency graph cannot be fully converted**
+* **SIMD is unsupported** in Sulong
+* **C++ runtime semantics are not faithfully reproduced**
+* The **ctypes bridge is immature**
+* **ABI expectations are strict and brittle**
+
+---
+
+## Conclusion
+
+Running PDFium as LLVM bitcode inside GraalVM is not just an engineering challenge—it is a mismatch between system design assumptions.
+
+You are attempting to:
+
+> Execute a performance-critical, SIMD-heavy native rendering engine inside an environment that does not support its instruction set or runtime model.
+
+That mismatch is the fundamental blocker.
