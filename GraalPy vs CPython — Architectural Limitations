@@ -1,0 +1,137 @@
+The Core Problem: GraalPy is Not CPython
+Layer 1: The ctypes Callback Problem (Current Blocker)
+
+pypdfium2 wraps libpdfium, a native C library. To pass Python data (such as a BytesIO buffer) into that C library, it relies on ctypes callbacks — Python functions converted into C function pointers at runtime.
+
+Simplified Example
+# Inside pypdfium2 (simplified)
+GetBlock = ctypes.CFUNCTYPE(...)      # Define C function signature
+callback = GetBlock(my_python_function)  # Convert Python function → C pointer
+Failure Point
+
+This conversion is not supported in GraalPy.
+
+CPython provides a stable C ABI that allows Python functions to be exposed as callable C function pointers.
+GraalPy runs on the JVM and does not expose a compatible C ABI.
+As a result, native code cannot call back into Python via function pointers.
+Observed Error
+Cannot convert Object pointer to native
+Key Insight
+
+Your fix:
+
+POINTER(None) → c_void_p
+
+only resolves a type annotation issue, not the core problem.
+
+The failure is architectural, not syntactic.
+It cannot be patched with small fixes.
+
+Layer 2: PDF Loading Path Has No Escape
+
+You identified a potential workaround:
+
+Use a file path instead of an in-memory buffer
+This would ideally trigger:
+FPDF_LoadDocument (path-based)
+instead of FPDF_LoadMemDocument (buffer + callback)
+Why This Matters
+Function	Requires Callbacks
+FPDF_LoadMemDocument	Yes
+FPDF_LoadDocument	No
+The Problem
+
+pypdfium2.PdfDocument abstracts this decision:
+
+It inspects input types internally
+It may still convert file paths into buffers
+It likely routes everything through the memory-loading path
+Implication
+
+Even if docling passes a file path:
+
+You cannot guarantee callback-free execution
+The callback requirement may still be triggered internally
+Workaround Options
+Option A — Minimal C PDF Text Extractor
+
+Build a lightweight custom C library:
+
+~500 lines of code
+Dependencies:
+zlib
+Features:
+Basic PDF parsing
+Text extraction only
+Advantages
+No Skia
+No complex dependency graph
+Easily compiled to LLVM bitcode
+Works with GraalVM
+Tradeoff
+Breaks compatibility with current docling architecture
+Requires custom parsing logic
+Option B — Use MuPDF Instead of PDFium
+
+Switch from PDFium to MuPDF.
+
+Benefits
+Much smaller and cleaner codebase
+Fewer dependencies
+No Skia
+No PartitionAlloc
+More realistic LLVM bitcode compilation
+Notes
+Some SIMD usage exists but is more optional than in PDFium
+API is simpler and more predictable
+Layer 4: The Architectural Mismatch
+GraalVM Strengths
+Polyglot execution (Java ↔ Python ↔ JS)
+JVM-based interoperability
+Works well with:
+Pure Python
+Simple C extensions
+Docling Stack Reality
+
+Docling depends on:
+
+pypdfium2 (native + callbacks)
+torch (heavy native backend)
+lxml (C extensions)
+Other low-level libraries
+Core Conflict
+GraalPy	Docling Stack
+JVM-based runtime	CPython-native ecosystem
+Limited C ABI support	Heavy reliance on native bindings
+No callback-compatible ctypes	Requires callbacks
+Conclusion
+
+These systems are fundamentally incompatible.
+
+GraalPy is suitable for:
+
+Pure Python logic
+Lightweight extensions
+
+Docling is built on:
+
+Deep native integrations
+CPython-specific behavior
+Bottom Line
+This is not a bug
+This is not patchable
+This is an architectural incompatibility
+If you want GraalVM to work:
+
+You must either:
+
+Replace native-heavy dependencies (PDFium, Torch, etc.)
+Or introduce a native bridge layer outside GraalPy
+Recommendation
+
+Start with:
+
+A minimal proof-of-concept (custom C extractor), or
+A migration to MuPDF
+
+before attempting full pipeline compatibility.
