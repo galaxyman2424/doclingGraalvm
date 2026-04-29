@@ -213,7 +213,7 @@ Java (JVM)
 
 ## 9. Proposed Solutions & Alternatives
 
-> Full analysis of each solution is documented in [`Solutions_Section.docx`](<https://github.com/galaxyman2424/doclingenv/blob/main/GRAALPY_DOCLING_COMPATIBILITY.md>).
+> Full analysis of each solution is documented in [`Solutions.md`](<https://github.com/galaxyman2424/doclingenv/blob/main/GRAALPY_DOCLING_COMPATIBILITY.md>).
 
 ### 9.1 Solution 1 — JNI Wrapper for PDFium
 - **What:** Direct Java-to-C bridge via JNI, bypassing pypdfium2 and Python ctypes entirely
