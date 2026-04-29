@@ -138,7 +138,7 @@
 
 ## 6. IPC Workaround — Subprocess Approach (Working Solution)
 
-> This is the approach that **works end-to-end** today. See [`PythonRunner.java`](<INSERT_GITHUB_LINK_HERE>) for the full implementation.
+> This is the approach that **works end-to-end** today. See [`PythonRunner.java`](<https://github.com/galaxyman2424/doclingGraalvm/blob/processbuilder/src/main/java/EmbedPythonTest.java>) for the full implementation.
 
 ### 6.1 How It Works
 - Java constructs a self-contained Python script as a string at runtime
@@ -213,7 +213,7 @@ Java (JVM)
 
 ## 9. Proposed Solutions & Alternatives
 
-> Full analysis of each solution is documented in [`Solutions_Section.docx`](<INSERT_GITHUB_LINK_HERE>).
+> Full analysis of each solution is documented in [`Solutions_Section.docx`](<https://github.com/galaxyman2424/doclingenv/blob/main/GRAALPY_DOCLING_COMPATIBILITY.md>).
 
 ### 9.1 Solution 1 — JNI Wrapper for PDFium
 - **What:** Direct Java-to-C bridge via JNI, bypassing pypdfium2 and Python ctypes entirely
