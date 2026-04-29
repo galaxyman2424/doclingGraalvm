@@ -225,12 +225,25 @@ overhead: ~microseconds, zero serialization, zero OS boundary
 
 ## 7. Key Insights
 
-- GraalPy is viable for pure-Python libraries but breaks down at native C extension boundaries — specifically ctypes `CFUNCTYPE` callbacks
-- Docling's dependency on PyTorch (via `docling-ibm-models`) is the primary blocker for ML-powered layout analysis; basic conversion has a narrower dependency surface
-- Incremental dependency isolation (installing with `--no-deps`, then resolving manually) is the correct strategy for embedding large Python frameworks in GraalPy
-- The `POINTER(None)` → `c_void_p` patch is a generalizable fix for any package using void pointer ctypes signatures under GraalPy
-- The subprocess IPC pattern is a pragmatic, production-grade fallback that should be the default recommendation for student-level projects
+### 7.1 GraalPy Is Viable for Pure-Python Libraries — Until It Isn't
 
+GraalPy handles pure-Python code well. Libraries with no native dependencies installed and ran correctly throughout this project, and the GraalPy import machinery, venv resolution, and site-packages layout all behave as expected. The wall is hit precisely at the C extension boundary — specifically when a package uses `ctypes.CFUNCTYPE` to register a Python callable as a native C function pointer via `set_callback`. GraalPy's C FFI implementation can handle simple type definitions and struct layouts, but it cannot perform the callable-to-function-pointer conversion that `CFUNCTYPE` requires. This is not a configuration issue or a missing package — it is a fundamental gap in GraalPy's native interop layer that would require a patch to GraalVM itself to resolve. Any Python library that crosses this boundary (pypdfium2, and by extension any library using a C-backed buffer reader) will fail the same way.
+
+### 7.2 PyTorch Is the Dependency That Poisons the Well
+
+Docling's ML-powered layout analysis — the feature that makes it genuinely useful over a basic PDF parser — depends on `docling-ibm-models`, which in turn requires PyTorch. PyTorch is not a Python library with a C extension; it is effectively a C++/CUDA runtime that happens to have a Python interface. GraalVM's own documentation classifies Torch support as "mostly experimental," and in practice it fails entirely during import due to missing native backends. This means the full Docling pipeline (AI layout analysis, table extraction, OCR) cannot run under GraalPy in any configuration today. What can run is the narrower dependency surface of basic document conversion — DOCX, HTML, Markdown backends — where PyTorch is never invoked. Understanding this distinction (PyTorch as a hard blocker vs. pypdfium2 as the PDF-specific blocker) is important for scoping any future fix: removing the PDF blocker alone still doesn't give you the ML pipeline.
+
+### 7.3 The `POINTER(None)` → `c_void_p` Patch Is a Generalizable GraalPy Fix
+
+CPython silently accepts `POINTER(None)` as a valid void pointer idiom in ctypes — it is widely used in auto-generated bindings files as a stand-in for `void*`. GraalPy rejects it outright at module load time with a `TypeError`, before any conversion is attempted. The fix is to replace every occurrence with `c_void_p`, which is semantically identical and is the ctypes-correct way to express a void pointer. This is not a pypdfium2-specific patch — any package whose bindings were auto-generated against a C header using `void*` will hit the same crash under GraalPy. The fix can be applied in one pass via `sed` and should be treated as a standard GraalPy porting step for any ctypes-heavy package. It is worth noting that this patch gets past module load, but does not fix the deeper `CFUNCTYPE` callback failure — the two are separate issues at different layers of the ctypes stack.
+
+### 7.4 The Subprocess Approach Is Not a Compromise — It Is the Correct Default
+
+Given the C FFI blockers documented above, reaching for `ProcessBuilder` with a native CPython venv is not admitting defeat. It delivers the complete Docling pipeline — full ML layout analysis, OCR, table extraction — because it runs on unmodified CPython where none of the GraalPy limitations apply. For a Java application that needs Docling today, it is production-grade: the `clone()`/`execve()` overhead is a one-time cold-start cost per conversion, not a per-page or per-call tax, and the pipe/file IPC is cheap relative to what Docling itself is doing internally. The GraalVM polyglot embedding path remains the right long-term goal — zero OS boundary, shared heap, direct object passing — but it is blocked upstream and outside the control of any application developer. Until GraalPy's native interop layer matures, the subprocess pattern should be the default recommendation for any Java-Docling integration, student project or otherwise.
+
+- **Incremental dependency isolation is the only viable install strategy** — Installing Docling via `pip install docling` in a GraalPy venv will fail. The dependency graph is too large and too native-heavy to resolve cleanly in one pass. The correct approach is `--no-deps` first, then use pip's conflict report to identify missing transitive dependencies and install them in batches grouped by complexity — pure-Python first, then packages requiring compilation. This lets you pinpoint the exact failure for each dependency rather than drowning in a wall of errors from a monolithic install.
+
+- **`charset_normalizer` must be pinned to `3.3.2`** — Version 3.4+ proactively enumerates every Python codec at import time. GraalPy does not implement the full codec registry (`euc_jis_2004` is missing), causing a hard `LookupError` on import. Pinning to `3.3.2` avoids the scan entirely and is a required fixup for any GraalPy environment pulling in `requests` or similar HTTP libraries.
 ---
 
 ## 8. Limitations & Challenges
