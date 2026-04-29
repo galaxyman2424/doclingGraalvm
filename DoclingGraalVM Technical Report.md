@@ -248,27 +248,29 @@ Given the C FFI blockers documented above, reaching for `ProcessBuilder` with a 
 
 ## 8. Proposed Solutions & Alternatives
 
-> Full analysis of each solution is documented in [`Solutions.md`](<https://github.com/galaxyman2424/doclingenv/blob/main/GRAALPY_DOCLING_COMPATIBILITY.md>).
+> Full analysis of more solutions are documented in [`Solutions.md`](<https://github.com/galaxyman2424/doclingenv/blob/main/GRAALPY_DOCLING_COMPATIBILITY.md>).
 
 ### 8.1 Solution 1 — JNI Wrapper for PDFium
-- **What:** Direct Java-to-C bridge via JNI, bypassing pypdfium2 and Python ctypes entirely
-- **Effort:** ~400–600 hours; requires C expertise, cross-platform toolchain, JVM internals knowledge
-- **Verdict:** Not feasible for a student team
+- What it does:
+  - Instead of relying on pypdfium2 (which wraps the native libpdfium library via Python ctypes), a JNI wrapper would create a direct Java-to-C bridge. This would call libpdfium.so directly from Java via a compiled .so or .dll native library, bypassing Python entirely for PDF loading and eliminating the pypdfium2 ctypes callback problem. Parsed data (text, images, metadata) would be returned to the GraalPy DocumentConverter as Python-callable objects through the polyglot API.
+- Why it's not feasible for a student team:
+  - JNI requires deep knowledge of C, Java memory management, JVM internals, and pointer manipulation — well beyond typical CS coursework. Even a simple JNI wrapper requires hundreds of lines of C code for type marshalling (converting Java objects ↔ C structs), error handling, and manual memory management, often at a 5:1 code-to-feature ratio. PDFium itself is approximately 500,000 lines of code, meaning exposing even a meaningful subset of its API would take weeks of work.
+  - Debugging is particularly brutal: segmentation faults from C code crash the entire JVM with no Python-style stack trace, requiring native debuggers like gdb or lldb. Memory leaks in the C layer don't show up in Java profilers and often only surface in production. Cross-platform compilation adds another layer of pain — the JNI library must be compiled separately for Windows (MSVC), Linux (GCC), and macOS (Clang), and any toolchain version mismatch between team members breaks the build for everyone.
 
 ### 8.2 Solution 2 — Patch GraalVM's LLVM Bitcode Interop
-- **What:** Add trampolining support to GraalVM's native interop layer so CFUNCTYPE callbacks can be converted to C function pointers
-- **Effort:** 600+ hours; requires GraalVM source-level expertise; patch may be rejected upstream
-- **Verdict:** Effectively impossible for a student team; appropriate for a GraalVM core contributor
+- What it does:
+  - GraalVM compiles Python code and C extensions to LLVM bitcode, then to native machine code. At the boundary, C FFI calls pass through a custom native interop layer. This solution would involve patching that interop layer to support CFUNCTYPE callback conversion — the specific operation that fails when pypdfium2 tries to register its buffer-reader callback via set_callback. Concretely, it would require implementing a trampolining mechanism that converts Python callables into native C function pointers on-the-fly, then submitting the patch upstream to GraalVM or maintaining a permanent fork.
+- Why it's effectively impossible for a student team:
+  - GraalVM's source spans approximately 2 million lines of Java code covering polyglot runtimes, JIT compilers, and the C FFI layer. Identifying which files to modify and understanding the invariants they must preserve requires weeks of source-reading before writing a single line of code. The trampoline code itself must bridge two radically different calling conventions (Python's garbage-collected stack frame model vs. C's ABI), and must be written in C or raw LLVM IR. A single mistake causes callbacks to crash, skip arguments, or silently corrupt memory. Each test cycle requires building GraalVM from source (1–2 hours) and running the full test suite (another hour or more).
+  - Beyond the technical difficulty, the patch would need to be accepted by the GraalVM maintainers, who have previously described ctypes callback support in GraalPy as a low priority. If rejected, the team would be stuck maintaining a private GraalVM fork indefinitely — a burden that compounds with every upstream security fix and release. Callbacks also behave differently across CPU architectures (x86-64, ARM, RISC-V) due to stack alignment, register preservation, and ABI differences, meaning a patch that works on one platform may silently break another.
 
 ### 8.3 Solution 3 — Replace pypdfium2 with a Pure-Python PDF Library
-- **What:** Swap Docling's PDF backend for `pdfplumber` or `pypdf` (pure Python, no C extensions)
-- **Effort:** ~100–150 hours
-- **Verdict:** Technically feasible but eliminates Docling's core AI layout analysis; delivers a significantly degraded product
-
-### 8.4 Recommended Approach (Pragmatic)
-- **Use the subprocess IPC approach** (`PythonRunner.java`) for any production or demo use
-- Pursue Solution 3 only if pure text extraction (no layout AI) is acceptable
-- Monitor GraalPy's ctypes roadmap for CFUNCTYPE callback support upstream
+- What it does:
+  - Rather than fixing the ctypes callback failure, this approach sidesteps it by swapping Docling's PDF backend for a pure-Python library that doesn't use C extensions at all. The realistic candidates are pdfplumber and pypdf — both are pure Python and would run without issue in GraalPy. Libraries like PyMuPDF (fitz) and pikepdf appear pure-Python on the surface but wrap MuPDF and pikepdf C++ backends respectively, hitting the same FFI limitations as pypdfium2.
+- Why it delivers a fundamentally degraded product:
+  - Docling's core value is its AI-powered layout analysis: understanding document structure (reading order, headers, footers, tables, columns) and performing OCR on scanned or image-based PDFs. All of that functionality depends on pypdfium2 as the rendering backend — it's not a configuration option but a deep architectural dependency. pdfplumber and pypdf do text extraction only, and struggle with anything beyond simple single-column documents.
+  - Swapping backends isn't a configuration change — it requires rewriting docling_parse_backend.py wholesale, replacing all pypdfium2 API calls with pdfplumber equivalents, and implementing from scratch the image extraction and encrypted PDF handling that pdfplumber lacks. The DocumentConverter.convert() return object carries layout metadata that downstream code relies on; without a real layout engine behind it, that metadata would be absent or fabricated.
+  - Performance is also a significant regression: pdfplumber can take 30–120 seconds to process a 100-page PDF where pypdfium2 handles the same document in 1–5 seconds, making batch processing or any server workload impractical.
 
 ---
 
