@@ -144,9 +144,10 @@
 
 ## 6. IPC Workaround — Subprocess Approach (Working Solution)
 
-> This is the approach that **works end-to-end** today. See [`IPCTest.java`](<https://github.com/galaxyman2424/doclingGraalvm/blob/processbuilder/src/main/java/IPCTest.java>) for the full implementation.
+> This is the approach that **works end-to-end** today. See [`IPCTest.java`](https://github.com/galaxyman2424/doclingGraalvm/blob/processbuilder/src/main/java/IPCTest.java) for the full implementation.
 
 ### 6.1 How It Works
+
 - Java constructs a self-contained Python script as a string at runtime
 - The script imports `DocumentConverter`, runs `convert()`, and writes the Markdown output to a file
 - Java launches the **native CPython executable** (inside the Docling venv) as a subprocess via `ProcessBuilder`
@@ -167,29 +168,59 @@ Java (JVM)
 ```
 
 ### 6.3 Key Implementation Details
+
 - Path configuration is done via string constants at the top of `main()` — easily adapted
 - `validateSetup()` checks that both the PDF file and Python executable exist before attempting conversion
 - `ProcessBuilder.redirectErrorStream(true)` merges stderr into stdout for unified capture
 - Exit code checked post-`waitFor()` to distinguish success from Python-level failures
 - No GraalVM polyglot API involved — works on any standard JDK
 
-### 6.4 Tradeoffs vs. In-Process Embedding
+### 6.4 Tradeoffs vs. All Three Approaches
 
-| Aspect | Subprocess (working) | GraalPy Embedding (blocked) |
-|---|---|---|
-| Works today | ✅ Yes | ❌ No |
-| In-process (shared memory) | ❌ No | ✅ Yes |
-| Startup overhead | Higher (new process per call) | Lower (context reuse) |
-| Deployment complexity | Requires Python venv on host | Self-contained JAR |
-| Full Docling ML pipeline | ✅ Yes (native CPython) | ❌ Blocked (C FFI) |
-| Production suitability | ✅ Suitable | ❌ Not yet |
+It's worth being precise about what each tier actually eliminates. `docling-serve` communicates over HTTP: data traverses the full network stack — TCP handshake, socket buffer copies, HTTP framing, JSON serialization, kernel `send()`/`recv()` syscalls — even when client and server are on the same physical machine. The subprocess approach eliminates every one of those layers.
+
+But `ProcessBuilder` is still IPC in the strict OS sense. On Linux (including WSL2), it ultimately invokes `clone()`/`execve()`. The kernel allocates a new process descriptor, copies the file descriptor table, loads the Python interpreter, and initializes the full venv — a cold-start cost paid on every conversion call. Communication back to Java flows through anonymous pipes or the filesystem, both kernel-mediated. There is no shared heap.
+
+The GraalVM embedding goal is to eliminate the OS boundary entirely: `DocumentConverter.convert()` would return a Python object directly into the Java heap via the polyglot Value API — no `fork`, no pipe, no filesystem round-trip.
+
+| Aspect | `docling-serve` (HTTP) | Subprocess `ProcessBuilder` | GraalPy Embedding |
+|---|---|---|---|
+| Works today | ✅ Yes | ✅ Yes | ❌ No |
+| IPC mechanism | TCP socket + HTTP | `clone()`/`execve()` + pipe/file | None — shared JVM heap |
+| Per-call overhead | ~ms + serialization cost | ~seconds cold start + pipe copies | ~µs, zero serialization |
+| In-process (shared memory) | ❌ No | ❌ No | ✅ Yes |
+| Deployment complexity | Requires running server | Requires Python venv on host | Self-contained JAR |
+| Full Docling ML pipeline | ✅ Yes | ✅ Yes (native CPython) | ❌ Blocked (C FFI) |
+| Production suitability | ✅ Suitable | ✅ Suitable | ❌ Not yet |
 
 ### 6.5 Why This Is Still Valuable
-- Delivers the end-to-end Docling PDF → Markdown pipeline from Java today
-- No GraalVM-specific patches or workarounds required
-- Can be used as a drop-in for `docling-serve` without HTTP overhead in single-host deployments
-- Provides a stable baseline while polyglot embedding is pursued upstream
+```
+This project achieved the middle tier of a three-level hierarchy:
+HTTP (docling-serve)           ← network stack + TCP + serialization  [eliminated ✅]
+↓
+OS subprocess (ProcessBuilder) ← clone()/execve() + pipe/file I/O     [remains ⚠️]
+↓
+GraalVM polyglot context       ← shared JVM heap, direct object passing [blocked ❌]
+```
+Removing HTTP is a real and meaningful improvement; no network stack, no serialization overhead, no dependency on a running server process. For single-host deployments, the subprocess approach is a practical drop-in replacement for `docling-serve`. The `clone()`/`execve()` boundary and pipe/file IPC remain, but these are substantially cheaper than TCP. The final tier; true in-process embedding with zero OS boundary — is almost certainly what IBM and the Docling team want as the production target, and it remains blocked at GraalPy's C FFI layer as documented in the sections above.
 
+### 6.6 The IPC Layer That Remains
+
+For completeness, the full per-tier cost breakdown:
+
+```
+HTTP (docling-serve)
+└─ TCP socket → kernel network stack → loopback → deserialize
+overhead: ~milliseconds per call + per-byte serialization cost
+OS subprocess (ProcessBuilder)
+
+└─ clone()/execve() → Python init → pipe/file I/O → waitpid()
+overhead: ~seconds cold start, pipe buffer copies per call
+GraalVM polyglot context (blocked)
+
+└─ context.eval() → direct object graph in shared JVM heap
+overhead: ~microseconds, zero serialization, zero OS boundary
+```
 ---
 
 ## 7. Key Insights
