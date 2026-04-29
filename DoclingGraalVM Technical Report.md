@@ -337,8 +337,3 @@ Overall, the main outcome of this project is not just the working subprocess imp
 | `lxml` | Compiled from source; requires `libxml2-dev`, `libxslt1-dev` |
 | `torch`, `torchvision`, `scipy`, `rapidocr` | Intentionally skipped |
 
-### D. Known Remaining Issues
-- `huggingface-hub 1.7.1` incompatible (needs `<1.0`) — not yet downgraded
-- `typer 0.24.1` incompatible (needs `<0.22.0`) — not yet downgraded
-- `EmbedPythonTest.java` not yet run end-to-end
-- All PDF backends ultimately route through the broken `pypdfium2` callback path
