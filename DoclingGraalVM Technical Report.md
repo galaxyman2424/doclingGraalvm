@@ -132,12 +132,12 @@
 | `ModuleNotFoundError: filetype` | Not pulled in with no-deps install | Installed `filetype` separately |
 
 ### 5.5 Stage 5 — Current Blocker: pypdfium2 Callback Failure
-- After all patches, `from docling.document_converter import DocumentConverter` **succeeds**
-- Calling `converter.convert(pdf_path)` fails at runtime:
-  - `pypdfium2`'s `get_bufreader()` function attempts to register a Python callable as a native C function pointer via `set_callback` (a `CFUNCTYPE` object)
-  - GraalPy throws: `Cannot convert Object pointer to native`
-  - All Docling PDF backends (v2, v4, default) route through this code path
-- Root cause: GraalPy's C FFI implementation cannot materialize native function pointers from Python callables — a known architectural limitation
+- After all patches, from docling.document_converter import DocumentConverter succeeds
+- Calling converter.convert(pdf_path) fails at runtime: pypdfium2's get_bufreader() function attempts to register a Python callable as a native C function pointer via set_callback (a CFUNCTYPE object)
+- GraalPy throws: NotImplementedError: ctypes function call could not obtain function pointer
+- All Docling PDF backends (v2, v4, default) route through this code path
+- Confirmed via isolation test: the identical CFUNCTYPE callback runs successfully in standalone GraalPy but fails immediately inside a Java Context.newBuilder("python") polyglot context — proving the embedding is the cause, not GraalPy's ctypes implementation in general
+- Root cause: Standalone GraalPy manages its own memory and native interop freely. When embedded inside the JVM polyglot context, the JVM's garbage collector takes over memory management — and this is fundamentally incompatible with how Python's C extensions work. Python C extensions use reference counting and expect to place objects directly into native, unmanaged memory. The JVM cannot trace or permit this: managed objects living on the Java heap cannot be materialized as raw C function pointers in native memory, which is exactly what CFUNCTYPE requires. On top of this, when C extension code is compiled for GraalPy it is represented as LLVM bitcode, which the JVM's own bytecode layer cannot directly interpret — the two memory models and execution representations cannot coexist at the boundary where pypdfium2 needs to hand a Python callable to native PDFium code.
 
 ---
 
