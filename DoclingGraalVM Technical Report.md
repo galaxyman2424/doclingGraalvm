@@ -276,23 +276,37 @@ Given the C FFI blockers documented above, reaching for `ProcessBuilder` with a 
 
 ## 9. Future Work
 
-- **Patch `docling_parse_backend.py`** to pass PDF file paths as strings directly to `pdfium.PdfDocument()` instead of `BytesIO` buffers — this would invoke `FPDF_LoadDocument` (no callbacks) instead of `FPDF_LoadMemDocument` (broken callback path)
-- **Downgrade `huggingface-hub`** to `<1.0` and `typer` to `<0.22.0` to clear remaining version conflicts
-- **Test `EmbedPythonTest.java` end-to-end** once PDF path-based loading is confirmed working
-- **Write a reproducible setup shell script** capturing all manual patches (`sed` commands, pinned versions, `apt` installs) so the environment can be rebuilt without repeating each fix
-- **Engage GraalVM upstream** — file an issue or contribute a fix for CFUNCTYPE callback conversion; this would unblock not just Docling but any Python library using ctypes callbacks under GraalPy
-- **Explore GraalVM Native Image** compilation of the subprocess runner for reduced startup latency
+- Patch docling_parse_backend.py (File-Path Based PDF Loading)
+  - Locate the pdfium.PdfDocument(self.path_or_stream) call in docling_parse_backend.py and add a conditional branch: if path_or_stream is a str or Path, pass it directly to pdfium.PdfDocument() so PDFium uses FPDF_LoadDocument (no callbacks) instead of FPDF_LoadMemDocument
+  - Test the patch by running a simple conversion on a local PDF through GraalPy and confirming no Cannot convert Object pointer to native error is raised; if the error shifts to a different call site, trace the new stack and apply the same path-vs-buffer branching logic there
+
+- Downgrade huggingface-hub and typer
+  - Run pip install "huggingface-hub<1.0" "typer<0.22.0" in the docling-env and verify with pip check that no new conflicts are introduced by the downgrades
+Re-run the from docling.document_converter import DocumentConverter import in GraalPy to confirm the version conflict warnings are gone and the import chain is still clean
+
+- Test EmbedPythonTest.java End-to-End
+  - Once PDF path-based loading is confirmed working in GraalPy standalone, run mvn clean compile exec:java and check that the GraalVM polyglot context successfully calls DocumentConverter.convert() on a test PDF in-process without falling back to subprocess
+If the polyglot context fails, isolate whether the failure is in the Java-side context options (executable path, venv path, PythonPath) or in the Python code itself by running the same Python snippet in GraalPy directly first, then replicating the exact options in EmbedPythonTest.java
+
+- Write a Reproducible Setup Shell Script
+  - Capture every manual step taken so far — the sed patch to pypdfium2_raw/bindings.py, the charset_normalizer pin, the apt installs for libxml2-dev and libxslt1-dev, and each batch pip install — into a single setup.sh so any team member can rebuild the environment from scratch with one command
+Add a validation block at the end of the script that runs python -c "from docling.document_converter import DocumentConverter; print('OK')" in the venv and exits non-zero if it fails, so breakage is caught immediately rather than silently
+
+- Explore GraalVM Native Image for the Subprocess Runner
+  - Profile the current PythonRunner.java subprocess approach to establish a baseline startup latency, then attempt a Native Image build with native-image -cp target/classes PythonRunner and compare cold-start times
+  - If Native Image build fails due to reflection or polyglot API usage, add the necessary --initialize-at-build-time flags and a reflection configuration JSON, documenting each flag so the build is reproducible
 
 ---
 
 ## 10. Conclusion
 
-- The team was unable to achieve fully in-process Docling PDF conversion via GraalPy due to a fundamental C FFI limitation in GraalVM's CFUNCTYPE callback handling
-- The failure was not a configuration error — it is an architectural gap in GraalPy's current implementation
-- Despite this, the team successfully: isolated the exact failure point in `pypdfium2`'s buffer reader; got `DocumentConverter` to import cleanly in GraalPy; and delivered a working end-to-end PDF → Markdown pipeline via subprocess IPC
-- Findings and repositories were shared with the Docling team
-- The subprocess approach (`PythonRunner.java`) is the recommended production path until GraalPy's C FFI matures
-- This project surfaced concrete, actionable data points for the GraalPy and Docling ecosystems — a meaningful contribution even without a fully working in-process integration
+This project started with the goal of getting Docling running directly inside Java using GraalVM, so we could avoid the overhead and complexity of spinning up a separate Python service. On paper, GraalVM looked like the right tool for this since it supports running Python and Java in the same process.
+
+In practice, we were able to get parts of Docling working. The core Python code and DocumentConverter import cleanly inside GraalPy, which showed that most of the dependency stack can actually be resolved. The problem shows up specifically at the PDF conversion step, where Docling relies on pypdfium2, which uses ctypes.CFUNCTYPE to pass Python callbacks into native C code. Inside a GraalVM polyglot context, this fails with a C FFI limitation where Python callables cannot be converted into native function pointers. This is not something we could fix with dependency changes or patching—it is a limitation of GraalPy’s current embedding model.
+
+Because of that, full in-process execution was not achievable. However, we were still able to build a fully working end-to-end solution using a subprocess-based approach in PythonRunner.java. This runs Docling through a standard CPython environment and communicates back to Java through IPC. While it does introduce a process boundary, it completely bypasses the GraalPy limitations and successfully handles full PDF → Markdown conversion.
+
+Overall, the main outcome of this project is not just the working subprocess implementation, but the fact that we were able to isolate the exact failure point in GraalVM’s C FFI layer. That makes it clear where the current system breaks and what would need to change in order for true in-process Docling execution to work in the future. Until then, the subprocess approach is the most reliable and production-ready option.
 
 ---
 
