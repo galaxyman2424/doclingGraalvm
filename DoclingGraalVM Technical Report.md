@@ -14,10 +14,10 @@
 5. [Technical Development & Findings](#5-technical-development--findings)
 6. [IPC Workaround — Subprocess Approach (Working Solution)](#6-ipc-workaround--subprocess-approach-working-solution)
 7. [Key Insights](#7-key-insights)
-8. [Proposed Solutions & Alternatives](#9-proposed-solutions--alternatives)
-9. [Future Work](#10-future-work)
-10. [Conclusion](#11-conclusion)
-11. [Appendix](#12-appendix)
+8. [Proposed Solutions & Alternatives](#8-proposed-solutions--alternatives)
+9. [Future Work](#9-future-work)
+10. [Conclusion](#10-conclusion)
+11. [Appendix](#11-appendix)
 
 ---
 
