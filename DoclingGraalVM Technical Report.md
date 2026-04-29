@@ -48,6 +48,11 @@
 - `docling-serve`: HTTP-based Java API — functional but introduces network overhead and deployment complexity
 - Goal: replace HTTP IPC with direct in-process interop via GraalPy
 
+### 2.4 Why We Chose GraalVM's Polyglot System
+- The core appeal of GraalVM's polyglot API is its promise of true in-process language interoperability. Unlike subprocess calls or HTTP-based IPC, GraalVM's polyglot context allows Java and Python to share the same memory space, pass objects directly between runtimes, and avoid serialization overhead entirely. The alternative we were already using, PythonRunner.java, works by spawning a native Python subprocess and reading stdout — functional, but fragile. The Java process has no visibility into Python's object model, errors surface only as text on stderr, and every invocation pays the full Python startup cost. GraalVM's polyglot API offered a way to eliminate all of that: once the Context is initialized, subsequent context.eval("python", ...) calls run inside an already-warm GraalPy runtime with no process boundary between Java and Python.
+### 2.5 Why We Thought It Would Work with Docling
+- Docling is written almost entirely in Python. Its core logic; document parsing, layout analysis, Markdown export — lives in pure Python classes like DocumentConverter and DoclingDocument, making it exactly the kind of library GraalPy is designed to host. Where native code does enter the picture, through pypdfium2's thin Python wrapper around Google's PDFium C library, Docling uses Python's standard ctypes module to call into it. GraalVM has a dedicated ctypes compatibility layer built specifically to bridge this kind of Python-to-native boundary. Since pypdfium2 follows that standard pattern, we had good reason to believe GraalPy's ctypes support would handle the interop transparently, keeping the entire conversion pipeline running inside a single JVM process.
+
 ---
 
 ## 3. Problem Definition
