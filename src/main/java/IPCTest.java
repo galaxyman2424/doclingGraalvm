@@ -3,7 +3,7 @@ import java.nio.file.Paths;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.PolyglotException;
 
-public class EmbedPythonTest {
+public class IPCTest {
 
     public static void main(String[] args) {
 
