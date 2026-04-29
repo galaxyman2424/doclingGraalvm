@@ -317,6 +317,7 @@ Overall, the main outcome of this project is not just the working subprocess imp
 - GraalPy polyglot context test harness: `<https://github.com/galaxyman2424/doclingGraalvm/blob/graalpytester/src/main/java/EmbedPythonTest.java>`
 - pom.xml: `<https://github.com/galaxyman2424/doclingGraalvm/blob/graalpytester/pom.xml>`
 - Python Resources: `<https://github.com/galaxyman2424/doclingenv/tree/main/lib/python3.12/site-packages>`
+- CTypeTest: `<https://github.com/galaxyman2424/doclingGraalvm/blob/CTypeTest/src/main/java/CTypeFuncTest.java>`
 
 ### B. Key Files
 | File | Description |
