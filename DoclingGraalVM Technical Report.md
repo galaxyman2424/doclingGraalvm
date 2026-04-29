@@ -138,7 +138,7 @@
 
 ## 6. IPC Workaround — Subprocess Approach (Working Solution)
 
-> This is the approach that **works end-to-end** today. See [`PythonRunner.java`](<https://github.com/galaxyman2424/doclingGraalvm/blob/processbuilder/src/main/java/EmbedPythonTest.java>) for the full implementation.
+> This is the approach that **works end-to-end** today. See [`EmbededPythonTest.java`](<https://github.com/galaxyman2424/doclingGraalvm/blob/processbuilder/src/main/java/EmbedPythonTest.java>) for the full implementation.
 
 ### 6.1 How It Works
 - Java constructs a self-contained Python script as a string at runtime
