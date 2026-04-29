@@ -58,13 +58,13 @@
 ## 3. Problem Definition
 
 ### 3.1 Core Objective
-- Eliminate the HTTP layer between Java and Docling
-- Run `DocumentConverter.convert()` directly inside the JVM via GraalVM's Polyglot Context
+- The existing docling-serve integration exposes Docling's functionality over HTTP, meaning every document conversion requires a full round-trip: the Java application serializes a request, opens a network connection, waits for the Python server to process the document, and deserializes the response. Even on localhost, this introduces measurable latency and adds operational complexity — the Python server must be running as a separate process before the Java application can function at all. The goal of this project was to eliminate that layer entirely by running Docling locally, embedded directly inside the JVM, so that document conversion is a function call rather than a network request.
 
 ### 3.2 Technical Constraints
-- Docling is Python-only; no native Java SDK exists
-- GraalPy must faithfully emulate CPython's C extension ABI for Docling's dependencies to function
-- Project must be buildable with standard tooling (Maven, GraalVM JDK 21)
+- GraalVM provides a native Java SDK for polyglot execution via its Polyglot API, allowing Java code to create Python contexts, evaluate Python code, and exchange objects across language boundaries within a single process
+- GraalPy must faithfully emulate CPython's behavior at two levels: pure Python semantics, and the C extension ABI that Docling's native dependencies (like pypdfium2) rely on to call into compiled C libraries
+- The JVM itself must therefore be capable of understanding and executing both managed Python bytecode and the native C code invoked through those extensions — bridging three runtimes in a single process
+- The project must remain buildable with standard tooling (Maven, GraalVM JDK 21) so it is reproducible without custom build infrastructure
 
 ### 3.3 Scope Boundaries
 - Skipped: full ML pipeline (PyTorch, torchvision, accelerate, scipy) — not required for basic PDF conversion
